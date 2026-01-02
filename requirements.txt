@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+smartapi-python
+python-dotenv
+python-multipart
+pyjwt[crypto]
+websockets
+requests
+logzero
+websocket-client
+pyotp

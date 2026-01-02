@@ -1,3 +1,4 @@
+import os
 from fastapi import FastAPI, WebSocket, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -13,9 +14,11 @@ load_dotenv()
 app = FastAPI(title="Stock Market Analytics")
 
 # Enable CORS for React Frontend
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Allow all for dev, restrict in prod
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

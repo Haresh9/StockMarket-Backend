@@ -46,6 +46,68 @@ async def login():
         # We will adhere to strictness: Return error if auth fails.
         raise HTTPException(status_code=401, detail=str(e))
 
+@app.get("/stock-history/{symbol}")
+async def get_stock_history(symbol: str):
+    try:
+        token = socket_manager.get_token(symbol)
+        if not token:
+             # Try appending .BSE if missing
+            if not symbol.endswith(".BSE"):
+                token = socket_manager.get_token(f"{symbol}.BSE")
+            
+            if not token:
+                raise HTTPException(status_code=404, detail="Stock symbol not found or mapped")
+
+        # Get SmartAPI instance
+        smart_api = socket_manager.angel_api
+        if not smart_api:
+             # Attempt standalone login if socket manager doesn't have it (e.g. dev mode)
+             try:
+                angel_auth.login()
+                smart_api = angel_auth.get_smart_api_instance()
+             except:
+                raise HTTPException(status_code=503, detail="Backend not connected to Angel One API")
+
+        # Calculate Dates (Last 30 Days)
+        from datetime import datetime, timedelta
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=30)
+        
+        # Format: YYYY-MM-DD HH:MM
+        from_date_str = start_date.strftime("%Y-%m-%d 00:00")
+        to_date_str = end_date.strftime("%Y-%m-%d 23:59")
+        
+        historicParam={
+            "exchange": "BSE",
+            "symboltoken": token,
+            "interval": "ONE_DAY",
+            "fromdate": from_date_str, 
+            "todate": to_date_str
+        }
+        
+        res = smart_api.getCandleData(historicParam)
+        
+        if res and res.get('status') and res.get('data'):
+            # Transform data for easy frontend consumption
+            # Angel Data: [timestamp, open, high, low, close, volume]
+            formatted_data = []
+            for candle in res['data']:
+                formatted_data.append({
+                    "date": candle[0],
+                    "open": candle[1],
+                    "high": candle[2],
+                    "low": candle[3],
+                    "close": candle[4],
+                    "volume": candle[5]
+                })
+            return formatted_data
+        else:
+            return [] # Return empty list if no data or API error handled gracefully
+            
+    except Exception as e:
+        print(f"Error fetching history: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.get("/market-strength")
 async def get_market_strength():
     """

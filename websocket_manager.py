@@ -68,47 +68,50 @@ class ConnectionManager:
             print(f"Error fetching real data for {ticker}: {e}")
             return None, None
 
+    # Token Map (Discovered via Script)
+    token_map = {
+        "RPOWER.BSE": "532939",
+        "TCS.BSE": "532540",
+        "HDFCBANK.BSE": "500180",
+        "ICICIBANK.BSE": "532174",
+        "INFY.BSE": "500209",
+        "IREDA.BSE": "544026",
+        "HINDCOPPER.BSE": "513599",
+        "KAYNES.BSE": "543664",
+        "HFCL.BSE": "500183",
+        "SOLARINDS.BSE": "532725",
+        "GROWW.BSE": "544603",
+        "ORKLAINDIA.BSE": "544595",
+        "EXCELSOFT.BSE": "544617",
+        "MTARTECH.BSE": "543270",
+        "PARAS.BSE": "543367",
+        "HAL.BSE": "541154",
+        "SUZLON.BSE": "532667",
+        "GMDCLTD.BSE": "532181",
+        "SWIGGY.BSE": "544285",
+        "BEL.BSE": "500049",
+        "ADANIPOWER.BSE": "533096",
+        "ZOMATO.BSE": "543320",
+        "LTF.BSE": "533519",
+        "POWERINDIA.BSE": "543187",
+        "TENNECO.BSE": "544612",
+        "SUDEEP.BSE": "544619"
+    }
+
+    def get_token(self, symbol):
+        return self.token_map.get(symbol)
+
     async def mock_data_generator(self):
         """
         HYBRID: Uses Real Data if available (via API), else Mock.
         """
         import random
         
-        # Token Map (Discovered via Script)
-        token_map = {
-            "RPOWER.BSE": "532939",
-            "TCS.BSE": "532540",
-            "HDFCBANK.BSE": "500180",
-            "ICICIBANK.BSE": "532174",
-            "INFY.BSE": "500209",
-            "IREDA.BSE": "544026",
-            "HINDCOPPER.BSE": "513599",
-            "KAYNES.BSE": "543664",
-            "HFCL.BSE": "500183",
-            "SOLARINDS.BSE": "532725",
-            "GROWW.BSE": "544603",
-            "ORKLAINDIA.BSE": "544595",
-            "EXCELSOFT.BSE": "544617",
-            "MTARTECH.BSE": "543270",
-            "PARAS.BSE": "543367",
-            "HAL.BSE": "541154",
-            "SUZLON.BSE": "532667",
-            "GMDCLTD.BSE": "532181",
-            "SWIGGY.BSE": "544285",
-            "BEL.BSE": "500049",
-            "ADANIPOWER.BSE": "533096",
-            "ZOMATO.BSE": "543320",
-            "LTF.BSE": "533519",
-            "POWERINDIA.BSE": "543187",
-            "TENNECO.BSE": "544612",
-            "SUDEEP.BSE": "544619"
-        }
-        
-        tickers = list(token_map.keys())
+        tickers = list(self.token_map.keys())
         market_data = []
 
         for ticker in tickers:
-            token = token_map.get(ticker)
+            token = self.token_map.get(ticker)
             real_ltp = None
             real_vol = None
             

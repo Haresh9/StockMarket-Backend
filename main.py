@@ -67,4 +67,9 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.send_json(data)
             await asyncio.sleep(1)
     except Exception as e:
-        socket_manager.disconnect(websocket)
+        # Standardize disconnect
+        print(f"WebSocket Disconnected or Error: {e}")
+        try:
+            socket_manager.disconnect(websocket)
+        except:
+            pass

@@ -23,33 +23,47 @@ class ConnectionManager:
     async def fetch_real_data(self, ticker, token):
         """
         Fetches Real LTP and Volume (Yesterday's Close) from Angel One.
+        Runs blocking API calls in a separate thread to avoid blocking the event loop.
         """
         try:
-            # 1. Get LTP
-            ltp_res = self.angel_api.ltpData("BSE", ticker.replace(".BSE", ""), token)
-            ltp = ltp_res['data']['ltp']
-            
-            # 2. Get Volume (Latest available Candle)
-            from datetime import datetime, timedelta
-            today = datetime.now().strftime("%Y-%m-%d")
-            five_days_ago = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d")
-            
-            historicParam={
-                "exchange": "BSE",
-                "symboltoken": token,
-                "interval": "ONE_DAY",
-                "fromdate": f"{five_days_ago} 00:00", 
-                "todate": f"{today} 23:59"
-            }
-            candle_res = self.angel_api.getCandleData(historicParam)
-            volume = 0
-            if candle_res and candle_res['data']:
-                # Get the last candle (latest date)
-                last_candle = candle_res['data'][-1]
-                # Input: [timestamp, open, high, low, close, volume]
-                volume = last_candle[5]
+            # Helper function for blocking calls
+            def fetch_sync():
+                ltp_val = None
+                vol_val = 0
                 
+                try:
+                    # 1. Get LTP
+                    ltp_res = self.angel_api.ltpData("BSE", ticker.replace(".BSE", ""), token)
+                    if ltp_res and 'data' in ltp_res:
+                        ltp_val = ltp_res['data']['ltp']
+                    
+                    # 2. Get Volume (Latest available Candle)
+                    from datetime import datetime, timedelta
+                    today = datetime.now().strftime("%Y-%m-%d")
+                    five_days_ago = (datetime.now() - timedelta(days=5)).strftime("%Y-%m-%d")
+                    
+                    historicParam={
+                        "exchange": "BSE",
+                        "symboltoken": token,
+                        "interval": "ONE_DAY",
+                        "fromdate": f"{five_days_ago} 00:00", 
+                        "todate": f"{today} 23:59"
+                    }
+                    candle_res = self.angel_api.getCandleData(historicParam)
+                    if candle_res and candle_res['data']:
+                        # Get the last candle (latest date)
+                        last_candle = candle_res['data'][-1]
+                        # Input: [timestamp, open, high, low, close, volume]
+                        vol_val = last_candle[5]
+                except Exception as inner_e:
+                    print(f"API call error for {ticker}: {inner_e}")
+                    
+                return ltp_val, vol_val
+
+            # Run in thread pool
+            ltp, volume = await asyncio.to_thread(fetch_sync)
             return ltp, volume
+
         except Exception as e:
             print(f"Error fetching real data for {ticker}: {e}")
             return None, None

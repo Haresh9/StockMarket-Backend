@@ -47,40 +47,38 @@ async def login():
         raise HTTPException(status_code=401, detail=str(e))
 
 @app.get("/stock-history/{symbol}")
-async def get_stock_history(symbol: str):
+async def get_stock_history(symbol: str, interval: str = "ONE_DAY", days: int = 30):
     try:
+        # Map frontend interval names to Angel API intervals
+        # Supported: ONE_MINUTE, FIVE_MINUTE, TEN_MINUTE, FIFTEEN_MINUTE, THIRTY_MINUTE, ONE_HOUR, ONE_DAY
+        
         token = socket_manager.get_token(symbol)
         if not token:
-             # Try appending .BSE if missing
             if not symbol.endswith(".BSE"):
                 token = socket_manager.get_token(f"{symbol}.BSE")
-            
             if not token:
-                raise HTTPException(status_code=404, detail="Stock symbol not found or mapped")
+                raise HTTPException(status_code=404, detail="Stock symbol not found")
 
-        # Get SmartAPI instance
         smart_api = socket_manager.angel_api
         if not smart_api:
-             # Attempt standalone login if socket manager doesn't have it (e.g. dev mode)
              try:
                 angel_auth.login()
                 smart_api = angel_auth.get_smart_api_instance()
              except:
                 raise HTTPException(status_code=503, detail="Backend not connected to Angel One API")
 
-        # Calculate Dates (Last 30 Days)
+        # Calculate Dates based on interval and provided days
         from datetime import datetime, timedelta
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=30)
+        start_date = end_date - timedelta(days=days)
         
-        # Format: YYYY-MM-DD HH:MM
         from_date_str = start_date.strftime("%Y-%m-%d 00:00")
         to_date_str = end_date.strftime("%Y-%m-%d 23:59")
         
         historicParam={
             "exchange": "BSE",
             "symboltoken": token,
-            "interval": "ONE_DAY",
+            "interval": interval,
             "fromdate": from_date_str, 
             "todate": to_date_str
         }
@@ -88,8 +86,6 @@ async def get_stock_history(symbol: str):
         res = smart_api.getCandleData(historicParam)
         
         if res and res.get('status') and res.get('data'):
-            # Transform data for easy frontend consumption
-            # Angel Data: [timestamp, open, high, low, close, volume]
             formatted_data = []
             for candle in res['data']:
                 formatted_data.append({
@@ -102,11 +98,59 @@ async def get_stock_history(symbol: str):
                 })
             return formatted_data
         else:
-            return [] # Return empty list if no data or API error handled gracefully
+            return []
             
     except Exception as e:
         print(f"Error fetching history: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/search")
+async def search_stocks(query: str):
+    try:
+        smart_api = socket_manager.angel_api
+        if not smart_api:
+             angel_auth.login()
+             smart_api = angel_auth.get_smart_api_instance()
+        
+        q_upper = query.upper()
+        res = smart_api.searchScrip(exchange="BSE", searchscrip=q_upper)
+        
+        if res and res.get('status') and res.get('data'):
+            data = res['data']
+            # Sort: exact match first, then starts-with, then others
+            def sort_key(item):
+                sym = item.get('tradingsymbol', '').upper()
+                if sym == q_upper:
+                    return 0
+                if sym.startswith(q_upper):
+                    return 1
+                return 2
+            
+            sorted_data = sorted(data, key=sort_key)
+            return sorted_data
+        return []
+    except Exception as e:
+        print(f"Search error: {e}")
+        return []
+
+class WatchlistRequest(BaseModel):
+    symbol: str
+    token: str
+
+@app.post("/watchlist/add")
+async def add_to_watchlist(request: WatchlistRequest):
+    """
+    Dynamically adds a symbol to the tracking list, placing it at the front.
+    """
+    # Create a new mapping with the new symbol first
+    new_map = {request.symbol: request.token}
+    # Add existing symbols (excluding the new one if it already existed)
+    for k, v in socket_manager.token_map.items():
+        if k != request.symbol:
+            new_map[k] = v
+    
+    socket_manager.token_map = new_map
+    return {"status": "success", "message": f"Added {request.symbol} to tracking"}
 
 @app.get("/market-strength")
 async def get_market_strength():
